@@ -6,3 +6,8 @@
 out/*
 target
 dizk.iml
+
+.vscode
+.idea
+.project
+bin/*
