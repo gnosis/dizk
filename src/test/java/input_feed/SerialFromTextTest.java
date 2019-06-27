@@ -56,5 +56,17 @@ public class SerialFromTextTest implements Serializable {
         assertTrue(r1cs.isSatisfied(witness._1(), witness._2()));
     }
 
+    @Test
+    public void exampleSerialR1CSFromTextTest() {
+        String fileName = "src/test/data/text/non-trivial/example";
+        converter = new TextToSerialR1CS<>(fileName, fieldFactory);
+
+        r1cs = converter.loadR1CS();
+        assertTrue(r1cs.isValid());
+
+        witness = converter.loadWitness();
+        assertTrue(r1cs.isSatisfied(witness._1(), witness._2()));
+    }
+
 
 }

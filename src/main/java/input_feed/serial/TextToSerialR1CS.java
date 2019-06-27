@@ -7,10 +7,11 @@ import scala.Tuple2;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.io.IOException;
 
 public class TextToSerialR1CS<FieldT extends AbstractFieldElementExpanded<FieldT>> {
     private final String filePath;
-    private final int numInputs;
+    private final int numPrimary;
     private final int numAuxiliary;
     private final int numConstraints;
     private final FieldT fieldParameters;
@@ -25,13 +26,13 @@ public class TextToSerialR1CS<FieldT extends AbstractFieldElementExpanded<FieldT
         negateCMatrix = _negateCMatrix;
 
         String[] parameters = new String[3];
-        try{
+        try {
             parameters = new BufferedReader(
-                    new FileReader(filePath + ".problem_size")).readLine().split(" ");
-        } catch (Exception e){
+                    new FileReader(filePath + ".size")).readLine().split(" ");
+        } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }
-        numInputs = Integer.parseInt(parameters[0]);
+        numPrimary = Integer.parseInt(parameters[0]);
         numAuxiliary = Integer.parseInt(parameters[1]);
         numConstraints = Integer.parseInt(parameters[2]);
     }
@@ -43,13 +44,13 @@ public class TextToSerialR1CS<FieldT extends AbstractFieldElementExpanded<FieldT
     public R1CSRelation<FieldT> loadR1CS() {
         final R1CSConstraints<FieldT> constraints = new R1CSConstraints<>();
 
-        try{
+        try {
 
             BufferedReader matrixA = new BufferedReader(new FileReader(filePath + ".a"));
             BufferedReader matrixB = new BufferedReader(new FileReader(filePath + ".b"));
             BufferedReader matrixC = new BufferedReader(new FileReader(filePath + ".c"));
 
-            for (int currRow = 0; currRow < numConstraints; currRow++){
+            for (int currRow = 0; currRow < numConstraints; currRow++) {
                 LinearCombination<FieldT> A = makeRowAt(currRow, matrixA, false);
                 LinearCombination<FieldT> B = makeRowAt(currRow, matrixB, false);
                 LinearCombination<FieldT> C = makeRowAt(currRow, matrixC, negateCMatrix);
@@ -60,11 +61,11 @@ public class TextToSerialR1CS<FieldT extends AbstractFieldElementExpanded<FieldT
             matrixB.close();
             matrixC.close();
 
-        } catch (Exception e){
+        } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }
 
-        return new R1CSRelation<>(constraints, numInputs, numAuxiliary);
+        return new R1CSRelation<>(constraints, numPrimary, numAuxiliary);
     }
 
     public Tuple2<Assignment<FieldT>, Assignment<FieldT>> loadWitness() {
@@ -72,46 +73,33 @@ public class TextToSerialR1CS<FieldT extends AbstractFieldElementExpanded<FieldT
         Assignment<FieldT> primary = new Assignment<>();
         Assignment<FieldT> auxiliary = new Assignment<>();
 
-        try{
-            String[] constraintParameters = new BufferedReader(
-                    new FileReader(filePath + ".problem_size")).readLine().split(" ");
-
-            int numPrimary = Integer.parseInt(constraintParameters[0]);
-            int numAuxiliary = Integer.parseInt(constraintParameters[1]);
-
-            final Assignment<FieldT> fullAssignment = new Assignment<>();
-
-            BufferedReader auxFile = new BufferedReader(new FileReader(filePath + ".aux"));
-            int count = 0;
-            String nextLine;
-            while ((nextLine = auxFile.readLine()) != null) {
-                final FieldT value = fieldParameters.construct(nextLine);
-                fullAssignment.add(value);
-                count++;
-            }
-            auxFile.close();
+        try {
+            // Prepend the value 1 to primary input
+            primary.add(fieldParameters.one());
 
             BufferedReader publicFile = new BufferedReader(new FileReader(filePath + ".public"));
-            while ((nextLine = publicFile.readLine()) != null) {
-                final FieldT value = fieldParameters.construct(nextLine);
-                fullAssignment.add(value);
-                count++;
-            }
-            publicFile.close();
+            loadAssignment(primary, publicFile, numPrimary);
 
-            assert (count == numPrimary + numAuxiliary);
+            BufferedReader auxFile = new BufferedReader(new FileReader(filePath + ".aux"));
+            loadAssignment(auxiliary, auxFile, numAuxiliary);
 
-//            auxiliary = new Assignment<>(fullAssignment.subList(0, numAuxiliary));
-//            primary = new Assignment<>(fullAssignment.subList(numAuxiliary, fullAssignment.size()));
-            primary = new Assignment<>(fullAssignment.subList(0, numPrimary));
-            auxiliary = new Assignment<>(fullAssignment.subList(numPrimary, fullAssignment.size()));
-        } catch (Exception e){
+        } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }
         return new Tuple2<>(primary, auxiliary);
     }
 
-    private LinearCombination<FieldT> makeRowAt (long index, BufferedReader reader, boolean negate) {
+    private void loadAssignment(Assignment<FieldT> assignment, BufferedReader file, int expectedSize) throws IOException {
+        String nextLine;
+        while ((nextLine = file.readLine()) != null) {
+            final FieldT value = fieldParameters.construct(nextLine);
+            assignment.add(value);
+        }
+        file.close();
+        assert (expectedSize == assignment.size());
+    }
+
+    private LinearCombination<FieldT> makeRowAt(long index, BufferedReader reader, boolean negate) {
         final LinearCombination<FieldT> combination = new LinearCombination<>();
         try {
             final int readAheadLimit = 100;
@@ -138,7 +126,7 @@ public class TextToSerialR1CS<FieldT extends AbstractFieldElementExpanded<FieldT
                     return combination;
                 }
             }
-        } catch (Exception e){
+        } catch (Exception e) {
             System.err.println("Error: " + e.getMessage());
         }
         return combination;
